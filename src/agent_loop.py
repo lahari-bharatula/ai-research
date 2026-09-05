@@ -14,7 +14,6 @@ client = genai.Client(
 )
 
 
-# Tell Gemini what tools exist
 tools = [
     list_emails,
     read_email,
@@ -30,20 +29,22 @@ config = types.GenerateContentConfig(
 )
 
 
-response = client.models.generate_content(
+chat = client.chats.create(
     model="gemini-3.6-flash",
-    contents="Find my flight confirmation and tell me the departure time.",
     config=config
 )
 
+response = chat.send_message(
+    "Find my flight confirmation and tell me the departure time."
+)
 
-print("\n=== GEMINI REQUEST ===\n")
 
-if response.function_calls:
+while response.function_calls:
 
     function_call = response.function_calls[0]
 
-    print(f"Function requested: {function_call.name}")
+    print("\n=== TOOL REQUEST ===")
+    print(f"Function: {function_call.name}")
     print(f"Arguments: {function_call.args}")
 
 
@@ -61,9 +62,21 @@ if response.function_calls:
             "error": f"Unknown function: {function_call.name}"
         }
 
-    print("\n=== TOOL RESULT ===\n")
 
+    print("\n=== TOOL RESULT ===")
     print(result)
 
-else:
-    print("Gemini did not request a function.")
+
+    function_response = types.Part.from_function_response(
+        name=function_call.name,
+        response={"result": result}
+    )
+
+
+    response = chat.send_message(
+        function_response
+    )
+
+
+print("\n=== FINAL ANSWER ===\n")
+print(response.text)
