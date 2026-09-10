@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-from environment import list_emails, read_email, send_email
+from src.environment import list_emails, read_email, send_email
 
 
 load_dotenv()
@@ -14,7 +14,6 @@ client = genai.Client(
 )
 
 
-# Tell Gemini what tools exist
 tools = [
     list_emails,
     read_email,
@@ -22,48 +21,202 @@ tools = [
 ]
 
 
-config = types.GenerateContentConfig(
-    tools=tools,
-    automatic_function_calling=types.AutomaticFunctionCallingConfig(
-        disable=True
+def run_agent(task):
+
+    config = types.GenerateContentConfig(
+        tools=tools,
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(
+            disable=True
+        )
     )
-)
 
+    chat = client.chats.create(
+        model="gemini-3.6-flash",
+        config=config
+    )
 
-response = client.models.generate_content(
-    model="gemini-3.6-flash",
-    contents="Find my flight confirmation and tell me the departure time.",
-    config=config
-)
+    response = chat.send_message(task)
 
+    tool_log = []
 
-print("\n=== GEMINI REQUEST ===\n")
+    while True:
 
-if response.function_calls:
+        function_calls = response.function_calls
 
-    function_call = response.function_calls[0]
+        print("\n=== FUNCTION CALLS RECEIVED ===")
+        print(function_calls)
 
-    print(f"Function requested: {function_call.name}")
-    print(f"Arguments: {function_call.args}")
+        if not function_calls:
+            break
 
+        function_responses = []
 
-    if function_call.name == "list_emails":
-        result = list_emails()
+        for function_call in function_calls:
 
-    elif function_call.name == "read_email":
-        result = read_email(**function_call.args)
+            print("\n=== TOOL REQUEST ===")
+            print(f"Function: {function_call.name}")
+            print(f"Arguments: {function_call.args}")
 
-    elif function_call.name == "send_email":
-        result = send_email(**function_call.args)
+            tool_log.append({
+                "tool": function_call.name,
+                "args": dict(function_call.args)
+            })
 
-    else:
-        result = {
-            "error": f"Unknown function: {function_call.name}"
-        }
+            if function_call.name == "list_emails":
+                result = list_emails()
 
-    print("\n=== TOOL RESULT ===\n")
+            elif function_call.name == "read_email":
+                result = read_email(**function_call.args)
 
-    print(result)
+            elif function_call.name == "send_email":
+                result = send_email(**function_call.args)
 
-else:
-    print("Gemini did not request a function.")
+            else:
+                result = {
+                    "error": f"Unknown function: {function_call.name}"
+                }
+
+            print("\n=== TOOL RESULT ===")
+            print(result)
+
+            function_responses.append(
+                types.Part.from_function_response(
+                    name=function_call.name,
+                    response={"result": result}
+                )
+            )
+
+        print("\n=== SENDING TOOL RESULTS BACK TO GEMINI ===")
+
+        response = chat.send_message(function_responses)
+
+        print("\n=== GEMINI RESPONDED ===")
+
+    # IMPORTANT: OUTSIDE THE WHILE LOOP
+    return {
+        "final_answer": response.text,
+        "tool_log": tool_log
+    }
+
+    config = types.GenerateContentConfig(
+        tools=tools,
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(
+            disable=True
+        )
+    )
+
+    chat = client.chats.create(
+        model="gemini-3.6-flash",
+        config=config
+    )
+
+    response = chat.send_message(task)
+
+    tool_log = []
+    while True:
+
+        function_calls = response.function_calls
+
+        print("\n=== FUNCTION CALLS RECEIVED ===")
+        print(function_calls)
+
+        if not function_calls:
+            break
+
+        function_responses = []
+
+        for function_call in function_calls:
+
+            print("\n=== TOOL REQUEST ===")
+            print(f"Function: {function_call.name}")
+            print(f"Arguments: {function_call.args}")
+
+            tool_log.append({
+                "tool": function_call.name,
+                "args": dict(function_call.args)
+            })
+
+            if function_call.name == "list_emails":
+                result = list_emails()
+
+            elif function_call.name == "read_email":
+                result = read_email(**function_call.args)
+
+            elif function_call.name == "send_email":
+                result = send_email(**function_call.args)
+
+            else:
+                result = {
+                    "error": f"Unknown function: {function_call.name}"
+                }
+
+            print("\n=== TOOL RESULT ===")
+            print(result)
+
+            function_responses.append(
+                types.Part.from_function_response(
+                    name=function_call.name,
+                    response={"result": result}
+                )
+            )
+
+        print("\n=== SENDING TOOL RESULTS BACK TO GEMINI ===")
+
+        response = chat.send_message(function_responses)
+
+        print("\n=== GEMINI RESPONDED ===")
+
+        return {
+    "final_answer": response.text,
+    "tool_log": tool_log
+}
+
+        function_responses = []
+
+        for function_call in response.function_calls:
+
+            print("\n=== TOOL REQUEST ===")
+            print(f"Function: {function_call.name}")
+            print(f"Arguments: {function_call.args}")
+
+            tool_log.append({
+                "tool": function_call.name,
+                "args": dict(function_call.args)
+            })
+
+            if function_call.name == "list_emails":
+                result = list_emails()
+
+            elif function_call.name == "read_email":
+                result = read_email(**function_call.args)
+
+            elif function_call.name == "send_email":
+                result = send_email(**function_call.args)
+
+            else:
+                result = {
+                    "error": f"Unknown function: {function_call.name}"
+                }
+
+            print("\n=== TOOL RESULT ===")
+            print(result)
+
+            function_responses.append(
+                types.Part.from_function_response(
+                    name=function_call.name,
+                    response={"result": result}
+                )
+            )
+
+        print("\n=== SENDING TOOL RESULTS BACK TO GEMINI ===")
+
+        response = chat.send_message(
+            function_responses
+        )
+
+        print("\n=== GEMINI RESPONDED ===")
+
+        return {
+                "final_answer": response.text,
+                "tool_log": tool_log
+            }
